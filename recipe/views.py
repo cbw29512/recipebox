@@ -1,4 +1,4 @@
-from django.shortcuts import render, reverse, HttpResponseRedirect
+from django.shortcuts import render, redirect, reverse, HttpResponseRedirect
 from django.contrib.auth import login, logout, authenticate
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
@@ -25,7 +25,34 @@ def author(request, id):
 
 def recipe(request, id):
     recipe = RecipeItem.objects.get(id=id)
-    return render(request, 'recipe.html', {'recipe': recipe})
+    fav = False
+    if request.user.is_authenticated:
+        if request.user in Author.user.get_queryset():
+            author = Author.objects.get(user=request.user)
+            if recipe in author.favorites.all():
+                fav = True
+    return render(request, 'recipe.html', {
+        'recipe': recipe,
+        'fav': fav
+        })
+
+
+@login_required
+def favorite(request, id):
+    this_recipe = RecipeItem.objects.get(id=id)
+    author = Author.objects.get(user=request.user)
+    author.favorites.add(this_recipe)
+    author.save()
+    return redirect(recipe, id=this_recipe.id)
+
+
+@login_required
+def unfavorite(request, id):
+    this_recipe = RecipeItem.objects.get(id=id)
+    author = Author.objects.get(user=request.user)
+    author.favorites.remove(this_recipe)
+    author.save()
+    return redirect(recipe, id=this_recipe.id)
 
 
 @login_required
@@ -35,14 +62,21 @@ def add_recipe(request):
     if request.user.is_staff:
         if request.method == "POST":
             form = AddRecipeForm(request.POST)
-            form.save()
-            return HttpResponseRedirect(reverse('homepage'))
+            if form.is_valid():
+                data = form.cleaned_data
+                RecipeItem.objects.create(
+                    title=data['title'],
+                    author=data['author'],
+                    description=data['description'],
+                    time_required=data['time_required'],
+                    instructions=data['instructions'],
+                )
+                return HttpResponseRedirect(reverse('homepage'))
     if not request.user.is_staff:
         form = NotStaffRecipeForm(request.POST)
-
         if request.method == "POST" and form.is_valid():
             data = form.cleaned_data
-            non_staff_author = RecipeItem.objects.create(
+            RecipeItem.objects.create(
                 title=data['title'],
                 author=request.user.author,
                 description=data['description'],
@@ -51,6 +85,51 @@ def add_recipe(request):
             )
             return HttpResponseRedirect(reverse('homepage'))
         form = NotStaffRecipeForm()
+    return render(request, html, {'form': form})
+
+
+@login_required
+def edit_recipe(request, id):
+    html = "generic_form.html"
+    old_recipe = RecipeItem.objects.get(id=id)
+    if request.user.is_staff:
+        form = AddRecipeForm(initial={
+            'title': old_recipe.title,
+            'author': old_recipe.author,
+            'description': old_recipe.description,
+            'time_required': old_recipe.time_required,
+            'instructions': old_recipe.instructions,
+        })
+        if request.method == "POST":
+            form = AddRecipeForm(request.POST)
+            form.is_valid()
+            data = form.cleaned_data
+            this_recipe = RecipeItem.objects.get(id=id)
+            this_recipe.title = data['title']
+            this_recipe.author = data['author']
+            this_recipe.description = data['description']
+            this_recipe.time_required = data['time_required']
+            this_recipe.instructions = data['instructions']
+            this_recipe.save()
+            return redirect(recipe, id=this_recipe.id)
+    elif request.user == old_recipe.author.user:
+        form = NotStaffRecipeForm(initial={
+            'title': old_recipe.title,
+            'description': old_recipe.description,
+            'time_required': old_recipe.time_required,
+            'instructions': old_recipe.instructions,
+        })
+        if request.method == "POST":
+            form = NotStaffRecipeForm(request.POST)
+            form.is_valid()
+            data = form.cleaned_data
+            this_recipe = RecipeItem.objects.get(id=id)
+            this_recipe.title = data['title']
+            this_recipe.description = data['description']
+            this_recipe.time_required = data['time_required']
+            this_recipe.instructions = data['instructions']
+            this_recipe.save()
+            return redirect(recipe, id=this_recipe.id)
     return render(request, html, {'form': form})
 
 
@@ -94,6 +173,5 @@ def loginview(request):
 
 
 def logoutview(request):
-    if logout(request):
-        return HttpResponseRedirect(reverse('homepage'))
-    return render(request, 'generic_form.html', {})
+    logout(request)
+    return HttpResponseRedirect(reverse('homepage'))
