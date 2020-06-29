@@ -2,8 +2,8 @@ from django.shortcuts import render, reverse, HttpResponseRedirect
 from django.contrib.auth import login, logout, authenticate
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
-
-from recipe.models import RecipeItem, Author
+from .models import RecipeItem, Author
+# from recipe.models import RecipeItem, Author
 from recipe.forms import AddRecipeForm, AddAuthorForm
 from recipe.forms import LoginForm, NotStaffRecipeForm
 
@@ -20,7 +20,7 @@ def author(request, id):
     recipe = RecipeItem.objects.filter(author=author)
     return render(request, 'author.html', {
         'data': data, 'author': author, 'recipe': recipe
-        })
+    })
 
 
 def recipe(request, id):
@@ -64,7 +64,7 @@ def add_author(request):
             data = form.cleaned_data
             # Matt Perry assisted with this portion new_user
             new_user = User.objects.create_user(
-                username=data['name'], password=data['password']
+                username=data['name'],
             )
             new_author = Author.objects.create(
                 name=data['name'], bio=data['bio'], user=new_user)
@@ -83,12 +83,12 @@ def loginview(request):
             data = form.cleaned_data
             user = authenticate(
                 request, username=data['username'], password=data['password']
-                )
+            )
             if user:
                 login(request, user)
                 return HttpResponseRedirect(
                     request.GET.get('next', reverse('homepage'))
-                    )
+                )
     form = LoginForm()
     return render(request, 'generic_form.html', {'form': form})
 
@@ -96,4 +96,4 @@ def loginview(request):
 def logoutview(request):
     if logout(request):
         return HttpResponseRedirect(reverse('homepage'))
-    return render(request, 'generic_form.html', {})
+    return render(request, 'index.html', {})
